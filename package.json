@@ -1,7 +1,7 @@
 {
   "name": "object-detection-app",
   "version": "1.0.0",
-  "homepage": "https://[your-github-username].github.io/[repository-name]",
+  "homepage": "https://yarivtch.github.io/webObjectDetection",
   "private": true,
   "dependencies": {
     "@tensorflow/tfjs": "^4.17.0",
