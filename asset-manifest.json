@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/webObjectDetection/static/css/main.b32fcc78.css",
+    "main.js": "/webObjectDetection/static/js/main.4528e098.js",
+    "index.html": "/webObjectDetection/index.html",
+    "main.b32fcc78.css.map": "/webObjectDetection/static/css/main.b32fcc78.css.map",
+    "main.4528e098.js.map": "/webObjectDetection/static/js/main.4528e098.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.b32fcc78.css",
+    "static/js/main.4528e098.js"
+  ]
+}
