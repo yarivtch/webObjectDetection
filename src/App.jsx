@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Camera from './components/Camera';
@@ -42,6 +42,7 @@ function App() {
   const [isActive, setIsActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30);
   const [isDetected, setIsDetected] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const handleStart = () => {
     if (targetObject) {
@@ -77,6 +78,13 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    // כשמתחילים זיהוי, נמזער את התפריט
+    if (isActive) {
+      setIsMinimized(true);
+    }
+  }, [isActive]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -86,17 +94,17 @@ function App() {
           onDetection={handleDetection}
         />
         
-        <div className="controls-panel">
-          <DetectionSettings
-            targetObject={targetObject}
-            onObjectChange={setTargetObject}
-            timeout={timeout}
-            onTimeoutChange={setTimeout}
-            onStart={handleStart}
-            onReset={handleReset}
-            disabled={isActive}
-          />
-        </div>
+        <DetectionSettings
+          targetObject={targetObject}
+          onObjectChange={setTargetObject}
+          timeout={timeout}
+          onTimeoutChange={setTimeout}
+          onStart={handleStart}
+          onReset={handleReset}
+          disabled={isActive}
+          isMinimized={isMinimized}
+          setIsMinimized={setIsMinimized}
+        />
 
         {(isActive || isDetected) && (
           <>

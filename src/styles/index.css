@@ -48,6 +48,30 @@ body {
   box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
   z-index: 1000;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.controls-panel.minimized {
+  transform: translateY(calc(100% - 60px));
+  transition: transform 0.3s ease;
+}
+
+.controls-panel.minimized:hover,
+.controls-panel.minimized:focus {
+  transform: translateY(0);
+}
+
+.minimize-button {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  background: #ccc;
+  border-radius: 2px;
+  cursor: pointer;
 }
 
 /* מחוון התקדמות */
@@ -71,12 +95,13 @@ body {
 /* התאמות למובייל */
 @media (max-width: 768px) {
   .controls-panel {
-    padding: 12px;
+    padding: 20px 12px 12px;
   }
   
   .detection-progress {
     font-size: 14px;
     padding: 8px 16px;
+    top: env(safe-area-inset-top, 20px);
   }
 }
 
@@ -95,4 +120,67 @@ body {
   100% {
     transform: translateX(-50%) scale(1);
   }
+}
+
+.controls-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  transition: transform 0.3s ease;
+}
+
+.controls-wrapper.minimized {
+  transform: translateY(calc(100% - 40px));
+}
+
+.drag-handle {
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px 20px 0 0;
+  cursor: pointer;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.drag-handle:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+/* התאמות למובייל */
+@media (max-width: 768px) {
+  .controls-wrapper {
+    max-height: 80vh; /* מקסימום 80% מגובה המסך */
+  }
+
+  .controls-wrapper.minimized {
+    transform: translateY(calc(100% - 40px));
+  }
+
+  .drag-handle {
+    height: 40px;
+  }
+}
+
+/* אנימציות חלקות */
+.controls-wrapper {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* מניעת גלילה כשהתפריט מוקטן */
+.controls-wrapper.minimized .MuiPaper-root {
+  overflow: hidden;
+}
+
+/* סגנון לכפתור החץ */
+.drag-handle .MuiIconButton-root {
+  color: #666;
+  transition: transform 0.3s ease;
+}
+
+.controls-wrapper.minimized .drag-handle .MuiIconButton-root {
+  transform: rotate(180deg);
 } 

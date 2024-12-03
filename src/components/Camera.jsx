@@ -5,191 +5,231 @@ const Camera = ({ targetObject, onDetection }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [detector, setDetector] = useState(null);
-  const detectionRef = useRef(null);
-  const [isObjectDetected, setIsObjectDetected] = useState(false);
-  const [continuousDetectionTime, setContinuousDetectionTime] = useState(0);
-  const lastDetectionTime = useRef(0);
-  
-  const REQUIRED_SECONDS = 3; // זמן נדרש בשניות
-  const CONFIDENCE_THRESHOLD = 0.7; // סף ביטחון
+  const [detectionStartTime, setDetectionStartTime] = useState(null);
+  const [detectionCompleted, setDetectionCompleted] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const detectionInterval = useRef(null);
+  const failureSound = useRef(new Audio('/sounds/failure.mp3'));
 
-  useEffect(() => {
-    const setupCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        });
+  const REQUIRED_SECONDS = 3; // זמן אימות קבוע של 3 שניות
+  const CONFIDENCE_THRESHOLD = 0.6;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          
-          videoRef.current.onloadedmetadata = () => {
-            if (canvasRef.current) {
-              canvasRef.current.width = videoRef.current.videoWidth;
-              canvasRef.current.height = videoRef.current.videoHeight;
-            }
-          };
+  const SUPPORTED_OBJECTS = [
+    'bottle', 'cup', 'wine glass', 'cell phone', 'book', 'chair', 
+    'laptop', 'mouse', 'keyboard', 'remote', 'clock', 'vase',
+    'scissors', 'teddy bear', 'toothbrush', 'spoon', 'fork', 'knife',
+    'bowl', 'banana', 'apple', 'sandwich', 'orange', 'pen'
+  ];
+
+  const playFailureSound = () => {
+    failureSound.current.currentTime = 0;
+    failureSound.current.play().catch(err => console.log('Audio play failed:', err));
+  };
+
+  const captureScreenshot = (prediction) => {
+    if (!videoRef.current || !canvasRef.current) return null;
+
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+
+    const padding = 20;
+    tempCanvas.width = prediction.bbox[2] + (padding * 2);
+    tempCanvas.height = prediction.bbox[3] + (padding * 2);
+
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    ctx.drawImage(
+      videoRef.current,
+      prediction.bbox[0] - padding,
+      prediction.bbox[1] - padding,
+      prediction.bbox[2] + (padding * 2),
+      prediction.bbox[3] + (padding * 2),
+      0, 0,
+      tempCanvas.width,
+      tempCanvas.height
+    );
+
+    return tempCanvas.toDataURL('image/png');
+  };
+
+  const drawPredictions = (predictions) => {
+    if (!canvasRef.current) return;
+
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    let targetFound = false;
+
+    predictions.forEach(prediction => {
+      const isTarget = prediction.class.toLowerCase() === targetObject?.toLowerCase();
+
+      if (detectionCompleted && !isTarget) return;
+
+      if (isTarget && prediction.score > CONFIDENCE_THRESHOLD) {
+        targetFound = true;
+
+        if (!detectionStartTime && !detectionCompleted) {
+          setDetectionStartTime(Date.now());
         }
 
-        const detectionService = new ObjectDetectionService();
-        await detectionService.initialize();
-        setDetector(detectionService);
-        console.log('מודל הזיהוי אותחל בהצלחה');
+        const elapsed = (Date.now() - detectionStartTime) / 1000;
 
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(
+          prediction.bbox[0],
+          prediction.bbox[1],
+          prediction.bbox[2],
+          prediction.bbox[3]
+        );
+
+        if (elapsed >= REQUIRED_SECONDS && !detectionCompleted) {
+          setDetectionCompleted(true);
+
+          const screenshot = captureScreenshot(prediction);
+          setCapturedImage(screenshot);
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.fillRect(
+            prediction.bbox[0],
+            prediction.bbox[1] - 40,
+            prediction.bbox[2],
+            40
+          );
+
+          ctx.fillStyle = '#00FF00';
+          ctx.font = 'bold 20px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            'זיהוי הושלם!',
+            prediction.bbox[0] + prediction.bbox[2] / 2,
+            prediction.bbox[1] - 15
+          );
+
+          onDetection({ ...prediction, screenshot });
+        }
+      } else if (!detectionCompleted) {
+        if (SUPPORTED_OBJECTS.includes(prediction.class.toLowerCase())) {
+          ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(
+            prediction.bbox[0],
+            prediction.bbox[1],
+            prediction.bbox[2],
+            prediction.bbox[3]
+          );
+
+          playFailureSound();
+        }
+      }
+    });
+
+    if (!targetFound && !detectionCompleted) {
+      setDetectionStartTime(null);
+    }
+  };
+
+  useEffect(() => {
+    let isModelLoading = false;
+
+    const loadModel = async () => {
+      if (isModelLoading) return;
+
+      try {
+        isModelLoading = true;
+        console.log('Loading object detection model...');
+        const model = await ObjectDetectionService.loadModel();
+        console.log('Model loaded successfully');
+        setDetector(model);
       } catch (error) {
-        console.error('שגיאה באתחול המצלמה:', error);
-        alert('לא הצלחנו לגשת למצלמה. אנא ודא שנתת הרשאות מתאימות.');
+        console.error('Failed to load model:', error);
+      } finally {
+        isModelLoading = false;
       }
     };
-    
-    setupCamera();
-    
+
+    loadModel();
+
     return () => {
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-      }
-      if (detectionRef.current) {
-        cancelAnimationFrame(detectionRef.current);
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
       }
     };
   }, []);
 
   useEffect(() => {
-    const detectFrame = async () => {
-      if (!detector || !videoRef.current || !canvasRef.current) return;
-      
-      if (targetObject && videoRef.current.readyState === 4) {
-        const predictions = await detector.detectObjects(videoRef.current);
-        drawPredictions(predictions);
-      } else {
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    const setupCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+
+          videoRef.current.onloadedmetadata = () => {
+            if (canvasRef.current && videoRef.current) {
+              canvasRef.current.width = videoRef.current.videoWidth;
+              canvasRef.current.height = videoRef.current.videoHeight;
+            }
+          };
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
       }
-      
-      detectionRef.current = requestAnimationFrame(detectFrame);
     };
 
-    if (targetObject) {
-      console.log('מתחיל חיפוש עבור:', targetObject);
-      detectFrame();
-    } else {
-      if (detectionRef.current) {
-        cancelAnimationFrame(detectionRef.current);
+    setupCamera();
+  }, []);
+
+  useEffect(() => {
+    if (!detector || !targetObject) return;
+
+    const detectObjects = async () => {
+      if (!videoRef.current || !canvasRef.current || videoRef.current.readyState !== 4) return;
+
+      try {
+        const predictions = await detector.detect(videoRef.current);
+        drawPredictions(predictions);
+      } catch (error) {
+        console.error('Detection error:', error);
       }
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      }
-    }
+    };
+
+    detectionInterval.current = setInterval(detectObjects, 100);
 
     return () => {
-      if (detectionRef.current) {
-        cancelAnimationFrame(detectionRef.current);
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
       }
     };
   }, [detector, targetObject]);
-
-  const drawPredictions = (predictions) => {
-    if (!canvasRef.current) return;
-    
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    
-    let targetFound = false;
-
-    predictions.forEach(prediction => {
-      const isTarget = prediction.class.toLowerCase() === targetObject?.toLowerCase();
-      
-      if (isTarget && prediction.score > CONFIDENCE_THRESHOLD) {
-        targetFound = true;
-        ctx.strokeStyle = '#00FF00';
-        ctx.lineWidth = 4;
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-        
-        // עדכון זמן הזיהוי הרציף
-        const currentTime = Date.now();
-        if (currentTime - lastDetectionTime.current < 1100) { // מרווח קצת יותר מ-1 שנייה
-          setContinuousDetectionTime(prev => {
-            const newTime = prev + (currentTime - lastDetectionTime.current) / 1000;
-            if (newTime >= REQUIRED_SECONDS && !isObjectDetected) {
-              setIsObjectDetected(true);
-              onDetection(prediction);
-            }
-            return newTime;
-          });
-        } else {
-          setContinuousDetectionTime(0); // איפוס אם היה פער בזיהוי
-        }
-        lastDetectionTime.current = currentTime;
-        
-      } else {
-        ctx.strokeStyle = '#FF0000';
-        ctx.lineWidth = 2;
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
-      }
-      
-      // ציור הריבוע
-      ctx.beginPath();
-      ctx.rect(
-        prediction.bbox[0],
-        prediction.bbox[1],
-        prediction.bbox[2],
-        prediction.bbox[3]
-      );
-      ctx.fill();
-      ctx.stroke();
-      
-      // הצגת טקסט עם זמן הזיהוי הרציף
-      ctx.fillStyle = isTarget ? '#00FF00' : '#FF0000';
-      ctx.font = '18px Arial';
-      let text = `${prediction.class} ${Math.round(prediction.score * 100)}%`;
-      if (isTarget && !isObjectDetected) {
-        text += ` (${Math.min(REQUIRED_SECONDS, Math.round(continuousDetectionTime))}/${REQUIRED_SECONDS}s)`;
-      }
-      ctx.fillText(
-        text,
-        prediction.bbox[0],
-        prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
-      );
-    });
-
-    // אם לא נמצא האובייקט המבוקש, מאפסים את הזמן
-    if (!targetFound && !isObjectDetected) {
-      setContinuousDetectionTime(0);
-    }
-  };
-
-  // איפוס בעת החלפת אובייקט לחיפוש
-  useEffect(() => {
-    setIsObjectDetected(false);
-    setContinuousDetectionTime(0);
-    lastDetectionTime.current = 0;
-  }, [targetObject]);
 
   return (
     <div className="camera-container">
       <video 
         ref={videoRef}
+        className="camera-video"
         autoPlay
         playsInline
         muted
       />
       <canvas 
         ref={canvasRef}
-        className="detection-canvas"
+        className="camera-canvas"
       />
-      {!isObjectDetected && continuousDetectionTime > 0 && (
-        <div className="detection-progress">
-          מזהה... {Math.min(REQUIRED_SECONDS, Math.round(continuousDetectionTime))}/{REQUIRED_SECONDS} שניות
+      {capturedImage && detectionCompleted && (
+        <div className="captured-image-container">
+          <img 
+            src={capturedImage} 
+            alt="Detected Object"
+            className="captured-image"
+          />
         </div>
       )}
     </div>
   );
 };
 
-export default Camera; 
+export default Camera;

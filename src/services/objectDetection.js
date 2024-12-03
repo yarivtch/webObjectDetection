@@ -1,25 +1,21 @@
 import * as tf from '@tensorflow/tfjs';
-import * as cocossd from '@tensorflow-models/coco-ssd';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 export class ObjectDetectionService {
-  constructor() {
-    this.model = null;
-  }
-
-  async initialize() {
-    if (!this.model) {
-      this.model = await cocossd.load();
-    }
-  }
-
-  async detectObjects(video) {
-    if (!this.model) throw new Error('המודל לא אותחל');
-    
+  static async loadModel() {
     try {
-      return await this.model.detect(video);
+      await tf.ready();
+      
+      const model = await cocoSsd.load({
+        base: 'lite_mobilenet_v2',
+        modelUrl: undefined,
+      });
+      
+      console.log('Model loaded successfully');
+      return model;
     } catch (error) {
-      console.error('שגיאה בזיהוי:', error);
-      return [];
+      console.error('Error loading COCO-SSD model:', error);
+      throw error;
     }
   }
 } 
