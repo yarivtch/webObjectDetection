@@ -22,8 +22,6 @@ import {
 const DetectionSettings = ({
   targetObject,
   onObjectChange,
-  timeout,
-  onTimeoutChange,
   onStart,
   onReset,
   disabled
@@ -117,30 +115,7 @@ const DetectionSettings = ({
             sx={{ width: '100%' }}
           />
           
-          <TextField
-            label="משך זמן לזיהוי (שניות)"
-            type="number"
-            value={timeout}
-            onChange={(e) => onTimeoutChange(Number(e.target.value))}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <TimerIcon color="primary" />
-                </InputAdornment>
-              ),
-              inputProps: { min: 1, max: 300 }
-            }}
-            disabled={disabled}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                '&:hover': {
-                  backgroundColor: '#ffffff'
-                }
-              }
-            }}
-          />
+     
           
           <Stack 
             direction="row" 
